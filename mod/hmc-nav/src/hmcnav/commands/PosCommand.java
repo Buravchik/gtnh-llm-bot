@@ -9,7 +9,7 @@ import picocli.CommandLine;
 
 @CommandLine.Command(name = "pos", description = {"Shows position, facing, health, food and the goto state."})
 public class PosCommand extends AbstractMinecraftCommand implements ScheduledCommand {
-    public PosCommand(MinecraftContext ctx) { super(ctx); }
+    public PosCommand(MinecraftContext ctx) { super(ctx); hmcnav.Survival.ensure(); }
 
     @Override
     protected void execute() throws CommandException {

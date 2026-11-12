@@ -15,18 +15,22 @@ A Minecraft 1.7.10 / GTNH player bot driven by a local LLM (Ollama) over MCP.
 - `scripts/chat-agent.py`: демон, который следит за чатом и гоняет цикл вызова инструментов в Ollama (`qwen3:32b`).
 - `scripts/start-bot.sh`: интерактивный режим через [ollmcp](https://github.com/jonigl/mcp-client-for-ollama).
 
+Безопасность: goto/follow/explore прерываются при здоровье < 8 или голоде 0 без еды. Чат-агент сам пишет в чат итог `explore`/`goto` (координаты найденного), когда задача закончится.
+
 ## Команды мода (через `game_command`)
 | Команда | Что делает |
 |---|---|
 | `pos` | позиция, взгляд, здоровье, еда, состояние ходьбы |
 | `goto X Y Z` / `goto X Z` [`--sprint`], `goto status`, `goto stop` | дойти до точки |
 | `scan [R] [--level Y]`, `scan --slice N\|E\|... [--depth D]` | карта сверху или в разрезе |
-| `find openings [R] --y Y`, `find <блок> [R]` | поиск входов и блоков |
+| `find openings [R] --y Y`, `find <имя> [R]` | поиск входов; мобов/животных/предметов по имени или классу (EntitySheep) среди загруженных клиентом сущностей + блоков в радиусе до 32 (в выводе указан реальный радиус) |
+| `explore <цель> [--radius R] [--seconds N]` | идти кольцами наружу (по умолчанию 160 блоков, 180 с), пока цель не попадёт в поле зрения; статус `goto status`, отмена `halt` |
+| `inventory`, `eat [N]`, `autoeat on\|off` | инвентарь и еда; автопоедание при голоде ≤14 (включено по умолчанию) |
 | `map players`, `map waypoints [фильтр]` | игроки рядом с координатами, путевые точки JourneyMap |
 | `goto player <ник>`, `goto waypoint <имя>` | дойти до игрока или точки |
 | `follow <ник> [--seconds N] [--distance D]`, `follow stop`, `follow status` | постоянно идти за игроком (держит ~2 блока) |
 | `jump [--seconds N]`, `jump --while-following`, `jump stop` | прыгать (можно вместе с follow) |
-| `halt` | остановить goto/follow/jump (`stop` в HMC — выход из игры!) |
+| `halt` | остановить goto/follow/jump/explore (`stop` в HMC — выход из игры!) |
 | `join <сервер>` | зайти на сервер из списка |
 | `look <yaw> [pitch]`, `look north\|...`, `lookat X Y Z` | повернуть камеру |
 

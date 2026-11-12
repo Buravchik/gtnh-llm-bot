@@ -31,6 +31,11 @@ public final class Navigator {
     private double followDist = 2.0;
     private long followEndMs;
     private int lastSeenTick;
+    // explore mode
+    private volatile String exploreTarget;
+    private int exStartX, exStartZ, exLeg, exRadius, exStuckLegs;
+    private long exEndMs;
+    private String exFound;
     // jump mode
     private volatile long jumpEndMs;
     private volatile boolean jumpWhileFollowing;
@@ -45,8 +50,12 @@ public final class Navigator {
         EntityClientPlayerMP p = W.player();
         if (p == null) return "Not in a world.";
         if (p.func_110143_aJ() <= 0) return "Player is dead, respawn first.";
+        Survival.ensure();
+        String bad = unsafe(p);
+        if (bad != null) return "Refusing to move: " + bad;
         this.player = p;
         this.followName = null;
+        this.exploreTarget = null;
         this.tx = x; this.ty = y; this.tz = z; this.sprint = sprint;
         this.path = null; this.idx = 0; this.ticks = 0; this.lastPlanTick = -1000; this.replans = 0; this.failedPlans = 0;
         this.bestGoalDist = ty == null ? goalDist(p) : Math.sqrt(Math.pow(goalDist(p), 2) + Math.pow(ty - W.feetY(p), 2)); this.startDist = bestGoalDist; this.lastProgressTick = 0; this.lastCloserTick = 0; this.jumpHold = 0; this.doorClicks = 0; this.doorTicks = 0;
@@ -73,6 +82,58 @@ public final class Navigator {
         log("follow started: " + followName + " for " + (seconds > 0 ? seconds + "s" : "until stopped") + ", distance " + followDist);
         return "Following " + followName + (seconds > 0 ? " for " + seconds + " s" : " until 'follow stop'") + ", keeping ~" + W.fmt(followDist) + " blocks."
                 + (jumpWhileFollowing ? " Jumping while following." : "");
+    }
+
+    /** Low health or starving without food -> reason, else null. */
+    static String unsafe(EntityClientPlayerMP p) {
+        float hp = p.func_110143_aJ(); int fd = Survival.food(p);
+        if (hp > 0 && hp < 8) return "health " + W.fmt(hp) + "/20 is low (<8)" + (Survival.hasFood() ? "; eat/rest first" : "; no food in inventory");
+        if (fd == 0 && !Survival.hasFood()) return "food 0/20 and no food in inventory (starving)";
+        return null;
+    }
+
+    private static final int[][] DIR8 = {{0, -1}, {1, -1}, {1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-1, -1}};
+
+    /** Walk outward (rings of 8 points) looking for an entity or block whose name contains target. */
+    public synchronized String explore(String target, int radius, int seconds) {
+        EntityClientPlayerMP p = W.player();
+        if (p == null) return "Not in a world.";
+        String found = check(target);
+        if (found != null) {
+            state = State.ARRIVED; message = "found " + found + " (already in sight, did not need to walk)";
+            return "Found without walking: " + found;
+        }
+        int sx = W.feetX(p), sz = W.feetZ(p);
+        String r = start(sx, null, sz, false);
+        if (state != State.WALKING) return r;
+        exploreTarget = target; exStartX = sx; exStartZ = sz; exLeg = -1; exStuckLegs = 0; exFound = null;
+        exRadius = Math.max(16, Math.min(512, radius));
+        exEndMs = System.currentTimeMillis() + Math.max(10, Math.min(1800, seconds)) * 1000L;
+        nextLeg(p);
+        message = "exploring for " + target;
+        log("explore started: " + target + ", radius " + exRadius + ", " + seconds + "s");
+        return "Exploring for '" + target + "' up to " + exRadius + " blocks from " + sx + " " + sz + " for at most " + seconds
+                + " s (checks loaded entities and blocks within 12 as it walks). Poll 'goto status' until ARRIVED (found) / STOPPED / STUCK.";
+    }
+
+    /** Entity anywhere loaded, else block within 12. */
+    private static String check(String target) {
+        EntityClientPlayerMP me = W.player();
+        List<Finder.Hit> e = Finder.entities(target);
+        if (!e.isEmpty()) return e.get(0).describe(me) + (e.size() > 1 ? " and " + (e.size() - 1) + " more" : "");
+        Finder.Hit b = Finder.block(target, 12, 8);
+        return b == null ? null : "block " + b.describe(me);
+    }
+
+    private boolean nextLeg(EntityClientPlayerMP p) {
+        exLeg++;
+        int ring = exLeg / 8 + 1, step = 24;
+        int dist = ring * step;
+        if (dist > exRadius) return false;
+        int[] d = DIR8[(exLeg + ring) % 8];
+        tx = exStartX + d[0] * dist; tz = exStartZ + d[1] * dist; ty = null;
+        path = null; failedPlans = 0; bestGoalDist = goalDist(p); lastProgressTick = ticks; lastCloserTick = ticks;
+        return true;
     }
 
     public synchronized String startJump(int seconds, boolean whileFollowing) {
@@ -105,12 +166,20 @@ public final class Navigator {
     public String followName() { return state == State.WALKING ? followName : null; }
 
     public synchronized void stop(String why) {
+        exploreTarget = null;
         if (state == State.WALKING) finish(State.STOPPED, why);
     }
 
     void fail(String why) { finish(State.FAILED, why); }
 
     private void finish(State s, String why) {
+        if (exploreTarget != null && (s == State.ARRIVED || s == State.STUCK)) {
+            EntityClientPlayerMP pp = W.player();
+            if (s == State.STUCK) exStuckLegs++; else exStuckLegs = 0;
+            if (pp != null && exStuckLegs < 6 && nextLeg(pp)) { log("explore: next leg " + exLeg + " -> " + tx + " " + tz + " (" + why + ")"); return; }
+            String t = exploreTarget; exploreTarget = null;
+            s = State.STOPPED; why = "explored up to " + exRadius + " blocks around " + exStartX + " " + exStartZ + ", no '" + t + "' found" + (exStuckLegs >= 6 ? " (terrain blocked many directions)" : "");
+        }
         state = s; message = why;
         EntityClientPlayerMP p = player;
         if (p != null) {
@@ -157,6 +226,9 @@ public final class Navigator {
             long left = followEndMs == Long.MAX_VALUE ? -1 : (followEndMs - System.currentTimeMillis()) / 1000;
             sb.append("following: ").append(followName).append(", keep ").append(W.fmt(followDist)).append(" blocks, ").append(left < 0 ? "until stopped" : left + "s left").append('\n');
         }
+        if (exploreTarget != null && state == State.WALKING)
+            sb.append("exploring: '").append(exploreTarget).append("', leg ").append(exLeg + 1).append(", ring radius ").append((exLeg / 8 + 1) * 24).append(" of ").append(exRadius)
+              .append(", ").append((exEndMs - System.currentTimeMillis()) / 1000).append("s left\n");
         if (jumpActive()) sb.append("jumping: ").append(jumpWhileFollowing ? "while following" : ((jumpEndMs - System.currentTimeMillis()) / 1000) + "s left").append('\n');
         if (state != State.IDLE) {
             sb.append("target: ").append(target());
@@ -182,6 +254,20 @@ public final class Navigator {
         ticks++;
         if (ticks % 10 == 1) W.keepAwake();
         int fx = W.feetX(p), fy = W.feetY(p), fz = W.feetZ(p);
+        if (ticks % 20 == 5) {
+            String bad = unsafe(p);
+            if (bad != null) { exploreTarget = null; followName = null; finish(State.FAILED, "aborted for safety: " + bad); return; }
+        }
+        if (exploreTarget != null) {
+            if (ticks % 20 == 2) {
+                String f = check(exploreTarget);
+                if (f != null) { String t = exploreTarget; exploreTarget = null; finish(State.ARRIVED, "found " + f); return; }
+            }
+            int fd = 20; float hp = 20;
+            try { fd = p.func_71024_bL().func_75116_a(); hp = p.func_110143_aJ(); } catch (Throwable ignored) {}
+
+            if (System.currentTimeMillis() > exEndMs) { String t = exploreTarget; exploreTarget = null; finish(State.STOPPED, "explore time is up, no '" + t + "' found within the walked area"); return; }
+        }
         if (followName != null) {
             if (System.currentTimeMillis() > followEndMs) { finish(State.STOPPED, "follow time is up"); followName = null; return; }
             JM.Pl pl = (ticks % 10 == 1 || ticks == 1) ? JM.findPlayer(followName) : null;

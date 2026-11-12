@@ -10,3 +10,7 @@ hmcnav.commands.JoinCommand
 hmcnav.commands.FollowCommand
 hmcnav.commands.JumpCommand
 hmcnav.commands.HaltCommand
+hmcnav.commands.ExploreCommand
+hmcnav.commands.InventoryCommand
+hmcnav.commands.EatCommand
+hmcnav.commands.AutoEatCommand

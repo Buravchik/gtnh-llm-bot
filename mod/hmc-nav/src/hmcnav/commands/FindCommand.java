@@ -33,7 +33,8 @@ public class FindCommand extends AbstractMinecraftCommand implements ScheduledCo
         List<String> a = Args.merge(params, unmatched);
         if (a.isEmpty()) throw new CommandException("Usage: find <name> [radius] | find openings [radius] [--y level] [--at x y z]");
         String what = a.get(0).toLowerCase(Locale.ROOT);
-        int r = a.size() > 1 ? Math.max(2, Math.min(32, Args.coord(a.get(1)))) : 16;
+        int asked = a.size() > 1 ? Args.coord(a.get(1)) : 16;
+        int r = Math.max(2, Math.min(32, asked));
         int cx = W.feetX(p), cy = W.feetY(p), cz = W.feetZ(p);
         if (at.size() == 1 && at.get(0).contains(",")) at = new ArrayList<String>(Arrays.asList(at.get(0).split(",")));
         if (!at.isEmpty() && at.size() != 3) throw new CommandException("--at needs x y z (or x,y,z)");
@@ -71,6 +72,10 @@ public class FindCommand extends AbstractMinecraftCommand implements ScheduledCo
             if (hits.isEmpty()) sb.append("  none found. Try another --y level, a bigger radius or move closer.\n");
             sb.append("Use 'goto x y z' on one of them; 'scan --level <y>' or 'scan --slice <dir>' to look inside.");
         } else {
+            List<hmcnav.Finder.Hit> ents = hmcnav.Finder.entities(what);
+            sb.append("Entities (mobs/animals/players/items) matching '").append(what).append("' among all entities the client has loaded (what the server sends, usually ~64-128 blocks; view distance ").append(viewDist()).append("): ")
+              .append(ents.isEmpty() ? "none" : ents.size() + " found").append('\n');
+            for (int i = 0; i < Math.min(15, ents.size()); i++) sb.append("  ").append(ents.get(i).describe(p)).append('\n');
             int ry = Math.min(r, 16);
             for (int dx = -r; dx <= r; dx++) for (int dz = -r; dz <= r; dz++) for (int dy = -ry; dy <= ry; dy++) {
                 int x = cx + dx, y = cy + dy, z = cz + dz;
@@ -79,7 +84,7 @@ public class FindCommand extends AbstractMinecraftCommand implements ScheduledCo
                 if (n.contains(what)) hits.add(new int[]{x, y, z});
             }
             sortAndCluster(hits, cx, cy, cz);
-            sb.append("Blocks matching '").append(what).append("' within ").append(r).append(" (").append(hits.size()).append(" after merging neighbours), nearest first:\n");
+            sb.append("Blocks matching '").append(what).append("' searched radius ").append(r).append(asked > r ? " (asked " + asked + ", max is 32)" : "").append(", +-").append(ry).append(" vertically (").append(hits.size()).append(" after merging neighbours), nearest first:\n");
             int shown = 0;
             for (int[] h : hits) {
                 if (shown++ >= 25) break;
@@ -89,6 +94,14 @@ public class FindCommand extends AbstractMinecraftCommand implements ScheduledCo
             if (hits.isEmpty()) sb.append("  none.\n");
         }
         ctx.log(sb.toString());
+    }
+
+    static int viewDist() {
+        try {
+            Object mc = W.mc();
+            Object gs = mc.getClass().getField("field_71474_y").get(mc);
+            return gs.getClass().getField("field_151451_c").getInt(gs) * 16;
+        } catch (Throwable t) { return 128; }
     }
 
     static boolean covered(World w, int x, int y, int z) {
