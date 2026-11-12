@@ -7,3 +7,6 @@ hmcnav.commands.PosCommand
 hmcnav.commands.FindCommand
 hmcnav.commands.MapCommand
 hmcnav.commands.JoinCommand
+hmcnav.commands.FollowCommand
+hmcnav.commands.JumpCommand
+hmcnav.commands.HaltCommand

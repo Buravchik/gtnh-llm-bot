@@ -26,6 +26,14 @@ public final class Navigator {
     private boolean sprintSet;
     private double startDist;
     private int jumpHold;
+    // follow mode
+    private volatile String followName;
+    private double followDist = 2.0;
+    private long followEndMs;
+    private int lastSeenTick;
+    // jump mode
+    private volatile long jumpEndMs;
+    private volatile boolean jumpWhileFollowing;
 
     private Navigator() {}
 
@@ -38,6 +46,7 @@ public final class Navigator {
         if (p == null) return "Not in a world.";
         if (p.func_110143_aJ() <= 0) return "Player is dead, respawn first.";
         this.player = p;
+        this.followName = null;
         this.tx = x; this.ty = y; this.tz = z; this.sprint = sprint;
         this.path = null; this.idx = 0; this.ticks = 0; this.lastPlanTick = -1000; this.replans = 0; this.failedPlans = 0;
         this.bestGoalDist = ty == null ? goalDist(p) : Math.sqrt(Math.pow(goalDist(p), 2) + Math.pow(ty - W.feetY(p), 2)); this.startDist = bestGoalDist; this.lastProgressTick = 0; this.lastCloserTick = 0; this.jumpHold = 0; this.doorClicks = 0; this.doorTicks = 0;
@@ -50,6 +59,51 @@ public final class Navigator {
                 + ". Poll 'goto status' until state is ARRIVED/STUCK/FAILED.";
     }
 
+    /** Follow a player until stopped or the time is up. */
+    public synchronized String follow(String name, int seconds, double dist) {
+        JM.Pl pl = JM.findPlayer(name);
+        if (pl == null) return "Player '" + name + "' is not in sight (use 'map players'). Not following.";
+        String r = start(W.floor(pl.x), W.floor(pl.y), W.floor(pl.z), false);
+        if (state != State.WALKING) return r;
+        followName = pl.name;
+        followDist = Math.max(1.0, Math.min(16.0, dist));
+        followEndMs = seconds > 0 ? System.currentTimeMillis() + seconds * 1000L : Long.MAX_VALUE;
+        lastSeenTick = 0;
+        message = "following " + followName;
+        log("follow started: " + followName + " for " + (seconds > 0 ? seconds + "s" : "until stopped") + ", distance " + followDist);
+        return "Following " + followName + (seconds > 0 ? " for " + seconds + " s" : " until 'follow stop'") + ", keeping ~" + W.fmt(followDist) + " blocks."
+                + (jumpWhileFollowing ? " Jumping while following." : "");
+    }
+
+    public synchronized String startJump(int seconds, boolean whileFollowing) {
+        EntityClientPlayerMP p = W.player();
+        if (p == null) return "Not in a world.";
+        W.keepAwake();
+        installInput(p);
+        jumpWhileFollowing = whileFollowing;
+        jumpEndMs = whileFollowing ? 0 : System.currentTimeMillis() + Math.max(1, Math.min(600, seconds)) * 1000L;
+        log("jump started: " + (whileFollowing ? "while following" : seconds + "s"));
+        return whileFollowing ? (followName != null && isActive() ? "Jumping while following " + followName + "." : "Will jump while following (start 'follow <nick>' too).")
+                : "Jumping for " + Math.max(1, Math.min(600, seconds)) + " s.";
+    }
+
+    public synchronized void stopJump() { jumpEndMs = 0; jumpWhileFollowing = false; maybeRestore(); }
+
+    public boolean jumpActive() {
+        if (System.currentTimeMillis() < jumpEndMs) return true;
+        return jumpWhileFollowing && followName != null && state == State.WALKING;
+    }
+
+    /** Called by the input wrapper after each update; puts the original input back when nothing is running. */
+    public void maybeRestore() {
+        if (!isActive() && !jumpActive()) {
+            EntityClientPlayerMP p = W.player();
+            if (p != null) restoreInput(p);
+        }
+    }
+
+    public String followName() { return state == State.WALKING ? followName : null; }
+
     public synchronized void stop(String why) {
         if (state == State.WALKING) finish(State.STOPPED, why);
     }
@@ -61,8 +115,9 @@ public final class Navigator {
         EntityClientPlayerMP p = player;
         if (p != null) {
             if (sprintSet) { try { p.func_70031_b(false); } catch (Throwable ignored) {} sprintSet = false; }
-            restoreInput(p);
+            if (!(System.currentTimeMillis() < jumpEndMs)) restoreInput(p);
         }
+        if (followName != null) jumpWhileFollowing = false;
         log("goto finished: " + s + " (" + why + ") at " + posStr(p) + ", target " + target());
     }
 
@@ -98,6 +153,11 @@ public final class Navigator {
             try { sb.append(", food ").append(p.func_71024_bL().func_75116_a()).append("/20"); } catch (Throwable ignored) {}
             sb.append('\n');
         }
+        if (followName != null && state == State.WALKING) {
+            long left = followEndMs == Long.MAX_VALUE ? -1 : (followEndMs - System.currentTimeMillis()) / 1000;
+            sb.append("following: ").append(followName).append(", keep ").append(W.fmt(followDist)).append(" blocks, ").append(left < 0 ? "until stopped" : left + "s left").append('\n');
+        }
+        if (jumpActive()) sb.append("jumping: ").append(jumpWhileFollowing ? "while following" : ((jumpEndMs - System.currentTimeMillis()) / 1000) + "s left").append('\n');
         if (state != State.IDLE) {
             sb.append("target: ").append(target());
             if (p != null) {
@@ -122,9 +182,26 @@ public final class Navigator {
         ticks++;
         if (ticks % 10 == 1) W.keepAwake();
         int fx = W.feetX(p), fy = W.feetY(p), fz = W.feetZ(p);
+        if (followName != null) {
+            if (System.currentTimeMillis() > followEndMs) { finish(State.STOPPED, "follow time is up"); followName = null; return; }
+            JM.Pl pl = (ticks % 10 == 1 || ticks == 1) ? JM.findPlayer(followName) : null;
+            if (pl != null) {
+                lastSeenTick = ticks;
+                int nx = W.floor(pl.x), ny = W.floor(pl.y), nz = W.floor(pl.z);
+                if (Math.abs(nx - tx) + Math.abs(nz - tz) + Math.abs(ny - (ty == null ? ny : ty)) >= 2) { tx = nx; ty = ny; tz = nz; path = null; bestGoalDist = 1e9; }
+            } else if (ticks - lastSeenTick > 200) { finish(State.STUCK, "lost sight of " + followName); followName = null; return; }
+            double fdx = tx + 0.5 - p.field_70165_t, fdz = tz + 0.5 - p.field_70161_v;
+            double fd = Math.sqrt(fdx * fdx + fdz * fdz);
+            if (fd <= followDist + 0.3 && Math.abs((ty == null ? fy : ty) - fy) <= 2) {
+                // close enough: stand and look at the player
+                faceBlock(p, tx + 0.5, (ty == null ? fy : ty) + 1.0, tz + 0.5);
+                lastProgressTick = ticks; lastCloserTick = ticks; path = null;
+                return;
+            }
+        }
         double gd = goalDist(p);
         boolean yOk = ty == null || Math.abs(ty - fy) <= 1;
-        if (gd < 0.8 && yOk) { finish(State.ARRIVED, "reached target"); return; }
+        if (followName == null && gd < 0.8 && yOk) { finish(State.ARRIVED, "reached target"); return; }
         if (ty != null && gd < 0.8 && !yOk) {
             // at the column but wrong height: try planning, the planner handles it
         }

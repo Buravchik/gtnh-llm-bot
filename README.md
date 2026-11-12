@@ -24,6 +24,9 @@ A Minecraft 1.7.10 / GTNH player bot driven by a local LLM (Ollama) over MCP.
 | `find openings [R] --y Y`, `find <блок> [R]` | поиск входов и блоков |
 | `map players`, `map waypoints [фильтр]` | игроки рядом с координатами, путевые точки JourneyMap |
 | `goto player <ник>`, `goto waypoint <имя>` | дойти до игрока или точки |
+| `follow <ник> [--seconds N] [--distance D]`, `follow stop`, `follow status` | постоянно идти за игроком (держит ~2 блока) |
+| `jump [--seconds N]`, `jump --while-following`, `jump stop` | прыгать (можно вместе с follow) |
+| `halt` | остановить goto/follow/jump (`stop` в HMC — выход из игры!) |
 | `join <сервер>` | зайти на сервер из списка |
 | `look <yaw> [pitch]`, `look north\|...`, `lookat X Y Z` | повернуть камеру |
 
