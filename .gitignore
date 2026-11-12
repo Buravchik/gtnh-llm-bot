@@ -1,0 +1,10 @@
+build/
+__pycache__/
+*.class
+*.log
+logs/
+bin/
+jars/
+backup/
+tools/
+.DS_Store

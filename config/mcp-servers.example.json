@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "headlessmc": {
+      "command": "$HOME/gtnh-bot/bin/headlessmc-mcp",
+      "args": [],
+      "disabled": false
+    }
+  }
+}

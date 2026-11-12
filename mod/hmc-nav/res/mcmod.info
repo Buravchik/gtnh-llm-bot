@@ -1,0 +1,10 @@
+[
+  {
+    "modid": "hmc_nav",
+    "name": "HMC-Nav",
+    "description": "Client-side navigation commands (goto, look, lookat, scan, pos) for HMC-Specifics / headlessmc-mcp bots.",
+    "version": "0.1.0",
+    "authorList": ["local"],
+    "dependencies": []
+  }
+]

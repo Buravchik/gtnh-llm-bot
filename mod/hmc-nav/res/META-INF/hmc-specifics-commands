@@ -1,0 +1,9 @@
+# HMC-Nav commands for HMC-Specifics (see me.earth.headlessmc.mc.commands.CommandRegistry).
+hmcnav.commands.GotoCommand
+hmcnav.commands.LookCommand
+hmcnav.commands.LookAtCommand
+hmcnav.commands.ScanCommand
+hmcnav.commands.PosCommand
+hmcnav.commands.FindCommand
+hmcnav.commands.MapCommand
+hmcnav.commands.JoinCommand

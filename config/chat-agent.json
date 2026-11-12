@@ -1,0 +1,22 @@
+{
+  "model": "qwen3:32b",
+  "ollama": "http://localhost:11434",
+  "bot_name": "Buravchik_backup",
+  "owners": [
+    "Boorawchick"
+  ],
+  "aliases": [
+    "buravchik",
+    "буравчик",
+    "бот",
+    "ботик",
+    "боту",
+    "бота",
+    "ботом",
+    "bot"
+  ],
+  "max_steps": 30,
+  "follow_up_seconds": 90,
+  "user_cooldown_seconds": 4,
+  "stranger_requests_per_hour": 20
+}
