@@ -64,6 +64,11 @@ Ollama
   find openings [R] --y Y [--at X Y Z]         входы (пещеры, тоннели, проёмы) на высоте Y
   find <имя> [R]              блоки по имени: door, ladder, chest, trapdoor...
   look <yaw> [pitch] | look north|south|east|west|up|down,  lookat X Y Z
+  map players                 другие игроки с координатами (кого видит клиент; без JM на сервере — только в радиусе прорисовки)
+  map waypoints [фильтр]      точки JourneyMap
+  goto player <ник> | goto waypoint <имя>
+  join <сервер из списка>     зайти на сервер из списка мультиплеера (напр. join sakvar) — JM берёт карту и точки этого сервера
+Во время goto мод выключает «пауза при потере фокуса», чтобы окно игры могло быть в фоне.
 Лог ходьбы пишется в лог игры строками "[hmc-nav] ...".
 
 Чат-агент (бот сам читает чат и отвечает)
@@ -77,3 +82,9 @@ Ollama
 хозяину (Boorawchick) ещё 90 с после ответа можно писать без обращения.
 Хозяин может давать задания (goto, найти вход, осмотреться); остальным — только справки (pos/scan/find), без действий.
 Читает чат из logs/latest.log игры, действует через headlessmc-mcp + Ollama (qwen3:32b).
+
+JourneyMap
+----------
+Стоит journeymap-forge-1.7.10-6.0.8.jar (Modrinth, sha1 aa05ce2c4793c99df74f6f4c50e851216070a2d6).
+Старый journeymap-1.7.10-5.2.23-fairplay.jar и архив данных JM лежат в ~/gtnh-bot/backup/.
+Заходите на сервер через список (sakvar), а не через --server/connect: иначе JM заводит отдельную карту «Command Line».

@@ -41,6 +41,7 @@ public final class Navigator {
         this.tx = x; this.ty = y; this.tz = z; this.sprint = sprint;
         this.path = null; this.idx = 0; this.ticks = 0; this.lastPlanTick = -1000; this.replans = 0; this.failedPlans = 0;
         this.bestGoalDist = ty == null ? goalDist(p) : Math.sqrt(Math.pow(goalDist(p), 2) + Math.pow(ty - W.feetY(p), 2)); this.startDist = bestGoalDist; this.lastProgressTick = 0; this.lastCloserTick = 0; this.jumpHold = 0; this.doorClicks = 0; this.doorTicks = 0;
+        W.keepAwake();
         installInput(p);
         state = State.WALKING;
         message = "walking";
@@ -119,6 +120,7 @@ public final class Navigator {
         if (p == null || w == null || p != player) { finish(State.STOPPED, "player changed (respawn/dimension change/disconnect)"); return; }
         if (p.func_110143_aJ() <= 0) { finish(State.FAILED, "player died"); return; }
         ticks++;
+        if (ticks % 10 == 1) W.keepAwake();
         int fx = W.feetX(p), fy = W.feetY(p), fz = W.feetZ(p);
         double gd = goalDist(p);
         boolean yOk = ty == null || Math.abs(ty - fy) <= 1;
@@ -186,10 +188,10 @@ public final class Navigator {
             PathFinder.Node n = path.get(look);
             double dx = n.x + 0.5 - p.field_70165_t, dz = n.z + 0.5 - p.field_70161_v;
             boolean vertical = n.move >= 3;
-            boolean yMatch = n.y == fy || (!vertical && Math.abs(n.y - fy) <= 1 && W.kind(w, n.x, n.y, n.z) == W.WATER);
+            boolean yMatch = n.y == fy || ((n.move != 4 && n.move != 5) && Math.abs(n.y - fy) <= 1 && (W.kind(w, n.x, n.y, n.z) == W.WATER || W.kind(w, fx, fy, fz) == W.WATER));
             boolean onIt = n.x == fx && n.z == fz && yMatch;
             boolean close = dx * dx + dz * dz < 0.35 * 0.35 && yMatch;
-            if (onIt && !vertical || close) {
+            if (onIt && (!vertical || n.move == 3) || close) {
                 idx = look + 1; wpStartTick = ticks; wpBestDist = 1e9; doorClicks = 0; lastProgressTick = ticks;
                 break;
             }

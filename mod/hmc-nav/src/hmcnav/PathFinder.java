@@ -56,7 +56,7 @@ public final class PathFinder {
             boolean ok;
             if (!(W.passable(kf) || kf == W.LOW) || !W.passable(kind(x, y + 1, z)) || kind(x, y - 1, z) == W.TALL) ok = false;
             else if (kf == W.WATER || kf == W.LOW || kf == W.LADDER) ok = true;
-            else { int kb = kind(x, y - 1, z); ok = kb == W.SOLID || kb == W.WATER; }
+            else { int kb = kind(x, y - 1, z); ok = kb == W.SOLID; }
             v = ok; stand.put(k, v);
         }
         return v;

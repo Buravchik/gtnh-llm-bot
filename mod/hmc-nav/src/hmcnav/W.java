@@ -138,7 +138,7 @@ public final class W {
         if (!passable(kind(w, x, y + 1, z))) return false;
         if (kf == WATER || kf == LOW || kf == LADDER) return true;
         int kb = kind(w, x, y - 1, z);
-        return kb == SOLID || kb == WATER;
+        return kb == SOLID;
     }
 
     public static boolean isWood(World w, int x, int y, int z) {
@@ -195,6 +195,19 @@ public final class W {
         String[] n = {"S", "SW", "W", "NW", "N", "NE", "E", "SE"};
         int i = Math.round(wrap(yaw) / 45f);
         return n[((i % 8) + 8) % 8];
+    }
+
+    /** Bots run with the window in the background: turn off pause-on-lost-focus and close the pause menu it opened. */
+    public static void keepAwake() {
+        try {
+            Object mc = mc();
+            Object gs = mc.getClass().getField("field_71474_y").get(mc);
+            java.lang.reflect.Field f = gs.getClass().getField("field_82881_y");
+            if (f.getBoolean(gs)) f.setBoolean(gs, false);
+            Object scr = mc.getClass().getField("field_71462_r").get(mc);
+            if (scr != null && scr.getClass().getSimpleName().equals("GuiIngameMenu"))
+                mc.getClass().getMethod("func_147108_a", Class.forName("net.minecraft.client.gui.GuiScreen")).invoke(mc, (Object) null);
+        } catch (Throwable ignored) {}
     }
 
     public static java.io.File gameDir() {
